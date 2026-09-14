@@ -108,14 +108,13 @@ uint8_t getChangedBits(const char* fileName) {
         double diff = bitEntropy[b] - bitEntropy[b + 1];
 
         printf("%lf\n", diff);
-        if (diff < -0.02 || (diff > 0.08 && b < 5)) {
+        if (diff < -0.05 || (diff > 0.08 && b < 5)) {
             result = b + 1;
         }
     }
 
     return result;
 }
-
 
 void print_usage(const char* progName) {
     printf("Usage:\n");
@@ -151,28 +150,57 @@ void readCommand(int argc, char *argv[]) {
         hide(bait, secret, result, bit);
     }
     else if (strcmp(argv[1], "decode") == 0) {
-        if (argc != 4) {
-            fprintf(stderr, "Błąd: Niepoprawna składnia dla 'decode'.\n");
+        int8_t changedBits = -1;
+        enum alg {
+            ENTROPY,
+        } alg = ENTROPY;
+        int i = 2;
+
+        while (true) {
+            if (strncmp(argv[i], "-b", 2) == 0) {
+                changedBits = atoi(argv[i + 1]);
+
+                i += 2;
+            }
+            else if (strncmp(argv[i], "-a", 2) == 0) {
+                if (strncmp(argv[i + 1], "en", 2) == 0) {
+                    alg = ENTROPY;
+                }
+                else {
+                    i = -3;
+                    break;
+                }
+
+                i += 2;
+            }
+            else {
+                break;
+            }
+        }
+
+        if (argc != i + 2) {
+            fprintf(stderr, "Syntax Error:\n");
             print_usage(progName);
             return;
         }
 
-        const char* coded = argv[2];
-
-        uint8_t changedBits = getChangedBits(coded);
+        if (changedBits == -1U) switch (alg) {
+            case ENTROPY:
+                changedBits = getChangedBits(argv[i]);
+                break;
+        }
 
         if (changedBits == 0) {
             printf("No steganography detected\n");
-            return;
         }
         else {
             printf("Steganography detected at bit: %d\n", changedBits);
-        }
 
-        uhide(coded, argv[3], changedBits);
+            uhide(argv[i], argv[i + 1], changedBits);
+        }
     }
     else {
-        fprintf(stderr, "Błąd: Nieznana komenda '%s'.\n", argv[1]);
+        fprintf(stderr, "Error: Unknown Command '%s'.\n", argv[1]);
         print_usage(progName);
     }
 }
