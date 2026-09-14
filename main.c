@@ -116,6 +116,70 @@ uint8_t getChangedBits(const char* fileName) {
     return result;
 }
 
+uint8_t getChangedBitsSpatial(const char* fileName) {
+    int w = 0;
+    int h = 0;
+    int c = 0;
+    unsigned char* img = stbi_load(fileName, &w, &h, &c, 3);
+    unsigned char (*imgID)[w][c] = (void *)img;
+
+    if (img == NULL) {
+        fprintf(stderr, "Error: File %s Does not exist\n", fileName);
+        return 0;
+    }
+
+    uint8_t detectedBits = 0;
+    float prevRatio = 1.0;
+
+    for (int b = 0; b < 8; b++) {
+        long long transitions = 0;
+        long long totalChecks = 0;
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                for (int k = 0; k < c; k++) {
+                    int current_bit = (imgID[y][x][k] >> b) & 1;
+
+                    if (x < w - 1) {
+                        int neighbor_bit = (imgID[y][x + 1][k] >> b) & 1;
+
+                        if (current_bit != neighbor_bit) transitions++;
+
+                        totalChecks++;
+                    }
+                    if (y < h - 1) {
+                        int neighbor_bit = (imgID[y + 1][x][k] >> b) & 1;
+
+                        if (current_bit != neighbor_bit) transitions++;
+
+                        totalChecks++;
+                    }
+                    if ((y < h - 1) && (x < w - 1)) {
+                        int neighbor_bit = (imgID[y + 1][x + 1][k] >> b) & 1;
+
+                        if (current_bit != neighbor_bit) transitions++;
+
+                        totalChecks++;
+                    }
+                }
+            }
+        }
+
+        double ratio = (double)transitions / totalChecks;
+
+        printf("  Bit %d (LSB %d): Change Ratio = %.4f -> \n", b, b + 1, ratio);
+
+        if (prevRatio < ratio) {
+            return detectedBits = b; 
+        }
+        prevRatio = ratio;
+    }
+
+    stbi_image_free(img);
+
+    return 0;
+}
+
 void print_usage(const char* progName) {
     printf("Usage:\n");
     printf("  %s encode <bit> <bait file> <secret file> <result file>\n", progName);
@@ -153,6 +217,7 @@ void readCommand(int argc, char *argv[]) {
         int8_t changedBits = -1;
         enum alg {
             ENTROPY,
+            SPATIAL
         } alg = ENTROPY;
         int i = 2;
 
@@ -165,6 +230,9 @@ void readCommand(int argc, char *argv[]) {
             else if (strncmp(argv[i], "-a", 2) == 0) {
                 if (strncmp(argv[i + 1], "en", 2) == 0) {
                     alg = ENTROPY;
+                }
+                else if (strncmp(argv[i + 1], "sp", 2) == 0) {
+                    alg = SPATIAL;
                 }
                 else {
                     i = -3;
@@ -187,6 +255,9 @@ void readCommand(int argc, char *argv[]) {
         if (changedBits == -1U) switch (alg) {
             case ENTROPY:
                 changedBits = getChangedBits(argv[i]);
+                break;
+            case SPATIAL:
+                changedBits = getChangedBitsSpatial(argv[i]);
                 break;
         }
 
